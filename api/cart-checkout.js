@@ -2,18 +2,20 @@ import { initializeApp, cert, getApps } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 
 // I-initialize ang Firebase Admin subalit iiwasan ang paulit-ulit na pag-initialize
+// I-initialize ang Firebase Admin subalit iiwasan ang paulit-ulit na pag-initialize
 if (!getApps().length) {
+  const privateKey = process.env.FIREBASE_PRIVATE_KEY 
+    ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n') 
+    : undefined;
+
   initializeApp({
     credential: cert({
       projectId: process.env.FIREBASE_PROJECT_ID,
       clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      // Pinapalitan ang mga escaped newlines para mabasa nang maayos ng Firebase
-      privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+      privateKey: privateKey,
     }),
   });
 }
-
-const db = getFirestore();
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Credentials', true);
