@@ -42,12 +42,8 @@ if (req.method === 'OPTIONS') {
             line_items: lineItems,
             payment_method_types: ['qrph'],
             success_url: redirect_url,
-            // ITO ANG NAGPUPWERSA NA HINGIN ANG EMAIL AT PANGALAN NG BUYER SA CHECKOUT PAGE
-            billing: {
-              name: "",
-              email: "",
-              phone: ""
-            }
+            // Ginagawa nating REQUIRE ang mga fields na ito para hindi pwedeng laktawan ng PayMongo
+            required_fields: ['billing.email', 'billing.name']
           }
         }
       })
