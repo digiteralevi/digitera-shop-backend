@@ -6,55 +6,86 @@ export default async function handler(req, res) {
 
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  // 1. WEBHOOK LISTENER (DITO NAGDEDELIVER ANG PAYMONGO)
-  if (req.method === 'POST' && req.body.data?.attributes?.type === 'payment.paid') {
+  // 1. WEBHOOK LISTENER
+  if (req.method === 'POST') {
     try {
-      const email = req.body.data.attributes.payload.data.attributes.billing.email;
-      const name = req.body.data.attributes.payload.data.attributes.billing.name;
+      const payload = req.body;
       
-      // I-trigger ang Resend Email
-      await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${process.env.RESEND_API_KEY}`
-        },
-        body: JSON.stringify({
-          from: 'Digitera Shop <onboarding@resend.dev>',
-          to: email,
-          subject: 'Your Digital Asset Delivery',
-          html: `<h1>Hello ${name}!</h1><p>Thank you for your purchase. Your files are ready!</p>`
-        })
-      });
-      return res.status(200).json({ status: 'Email sent' });
+      // Hahanapin natin ang email sa iba't ibang posibleng paglagyan ni PayMongo
+      let email = payload.data?.attributes?.data?.attributes?.billing?.email || 
+                  payload.data?.attributes?.payload?.data?.attributes?.billing?.email ||
+                  payload.data?.attributes?.billing?.email;
+                  
+      let name = payload.data?.attributes?.data?.attributes?.billing?.name || 
+                 payload.data?.attributes?.payload?.data?.attributes?.billing?.name ||
+                 payload.data?.attributes?.billing?.name || 
+                 "Customer";
+
+      // KUNG NULL PA RIN: Mag-fe-fetch tayo sa PayMongo API para kunin ang detalye ng payment
+      if (!email && payload.data?.attributes?.data?.id) {
+        const paymentId = payload.data.attributes.data.id;
+        const paymongoRes = await fetch(`https://api.paymongo.com/v1/payments/${paymentId}`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Basic ${Buffer.from(process.env.PAYMONGO_SECRET_KEY).toString('base64')}`
+          }
+        });
+        const paymentData = await paymongoRes.json();
+        email = paymentData.data?.attributes?.billing?.email;
+        name = paymentData.data?.attributes?.billing?.name || "Customer";
+      }
+
+      // Kapag nahanap na ang email, i-send na gamit ang Resend
+      if (email) {
+        await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${process.env.RESEND_API_KEY}`
+          },
+          body: JSON.stringify({
+            from: 'Digitera Shop <onboarding@resend.dev>',
+            to: email,
+            subject: 'Your Digital Asset Delivery',
+            html: `<h1>Hello ${name}!</h1><p>Thank you for your purchase. Your digital assets are ready for download!</p>`
+          })
+        });
+        return res.status(200).json({ status: 'Email sent successfully!' });
+      }
+      
+      return res.status(200).json({ status: 'Webhook received but email fallback empty' });
     } catch (e) {
       return res.status(500).json({ error: e.message });
     }
   }
 
-  // 2. CHECKOUT SESSION CREATOR (DITO NAGREREQUEST NG PAYMENT ANG SHOP)
+  // 2. CHECKOUT SESSION CREATOR
   if (req.method === 'POST') {
     const { items, email, redirect_url } = req.body;
     
-    const response = await fetch('https://api.paymongo.com/v1/checkout_sessions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Basic ${Buffer.from(process.env.PAYMONGO_SECRET_KEY).toString('base64')}`
-      },
-      body: JSON.stringify({
-        data: {
-          attributes: {
-            line_items: items.map(i => ({ name: i.name, amount: Math.round(i.price * 100), quantity: i.quantity, currency: 'PHP' })),
-            payment_method_types: ['gcash', 'qrph'],
-            billing: { email: email },
-            success_url: redirect_url
+    try {
+      const response = await fetch('https://api.paymongo.com/v1/checkout_sessions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Basic ${Buffer.from(process.env.PAYMONGO_SECRET_KEY).toString('base64')}`
+        },
+        body: JSON.stringify({
+          data: {
+            attributes: {
+              line_items: items.map(i => ({ name: i.name, amount: Math.round(i.price * 100), quantity: i.quantity, currency: 'PHP' })),
+              payment_method_types: ['gcash', 'qrph'],
+              billing: { email: email },
+              success_url: redirect_url
+            }
           }
-        }
-      })
-    });
-    
-    const data = await response.json();
-    return res.status(200).json({ checkout_url: data.data.attributes.checkout_url });
+        })
+      });
+      
+      const data = await response.json();
+      return res.status(200).json({ checkout_url: data.data.attributes.checkout_url });
+    } catch (error) {
+      return res.status(500).json({ error: error.message });
+    }
   }
 }
