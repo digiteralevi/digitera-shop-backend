@@ -9,7 +9,7 @@ export default async function handler(req, res) {
   if (req.method === 'POST') {
     const payload = req.body;
 
-    // A. CHECKOUT SESSION CREATOR (Galing sa website storefront mo)
+    // A. CHECKOUT SESSION CREATOR (Galing sa website mo)
     if (payload.items) {
       const { items, email, redirect_url } = payload;
       try {
@@ -25,6 +25,8 @@ export default async function handler(req, res) {
                 line_items: items.map(i => ({ name: i.name, amount: Math.round(i.price * 100), quantity: i.quantity, currency: 'PHP' })),
                 payment_method_types: ['gcash', 'qrph'],
                 billing: { email: email },
+                // DITO NATIN TINATAGO ANG EMAIL PARA HINDI MAWALA KAHIT ANONG PAYMENT METHOD
+                metadata: { customer_email: email },
                 success_url: redirect_url
               }
             }
@@ -38,30 +40,34 @@ export default async function handler(req, res) {
       }
     }
 
-    // B. WEBHOOK LISTENER (Galing kay PayMongo kapag nagbayad na)
+    // B. WEBHOOK LISTENER (Galing kay PayMongo kapag paid na)
     try {
-      // Hahanapin natin ang email sa iba't ibang posibleng paglagyan ni PayMongo
-      let email = payload.data?.attributes?.data?.attributes?.billing?.email || 
-                  payload.data?.attributes?.payload?.data?.attributes?.billing?.email ||
-                  payload.data?.attributes?.billing?.email;
+      // 1. Hahanapin ang email sa metadata (Pinakasiguradong paraan natin ngayon)
+      let email = payload.data?.attributes?.metadata?.customer_email ||
+                  payload.data?.attributes?.data?.attributes?.metadata?.customer_email;
+                  
+      // 2. Fallback sa mga standard billing structures kung sakali
+      if (!email) {
+        email = payload.data?.attributes?.data?.attributes?.billing?.email || 
+                payload.data?.attributes?.billing?.email;
+      }
                   
       let name = payload.data?.attributes?.data?.attributes?.billing?.name || 
-                 payload.data?.attributes?.payload?.data?.attributes?.billing?.name ||
                  payload.data?.attributes?.billing?.name || 
                  "Customer";
 
-      // KUNG NULL: Kukuha tayo sa PayMongo API gamit ang payment ID para masigurado
-      if (!email && payload.data?.attributes?.data?.id) {
-        const paymentId = payload.data.attributes.data.id;
-        const paymongoRes = await fetch(`https://api.paymongo.com/v1/payments/${paymentId}`, {
+      // 3. Last resort fallback gamit ang Payment Intent
+      if (!email && payload.data?.attributes?.payment_intent_id) {
+        const intentId = payload.data.attributes.payment_intent_id;
+        const intentRes = await fetch(`https://api.paymongo.com/v1/payment_intents/${intentId}`, {
           method: 'GET',
           headers: {
             'Authorization': `Basic ${Buffer.from(process.env.PAYMONGO_SECRET_KEY).toString('base64')}`
           }
         });
-        const paymentData = await paymongoRes.json();
-        email = paymentData.data?.attributes?.billing?.email;
-        name = paymentData.data?.attributes?.billing?.name || "Customer";
+        const intentData = await intentRes.json();
+        email = intentData.data?.attributes?.metadata?.customer_email || 
+                intentData.data?.attributes?.billing?.email;
       }
 
       if (email) {
@@ -75,13 +81,13 @@ export default async function handler(req, res) {
             from: 'Digitera Shop <onboarding@resend.dev>',
             to: email,
             subject: 'Your Digital Asset Delivery',
-            html: `<h1>Hello ${name}!</h1><p>Thank you for your purchase. Your digital assets are ready for download!</p>`
+            html: `<h1>Hello!</h1><p>Thank you for your purchase. Your digital assets are ready for download!</p>`
           })
         });
-        return res.status(200).json({ status: 'Email sent successfully!' });
+        return res.status(200).json({ status: 'Email sent successfully!', sentTo: email });
       }
       
-      return res.status(200).json({ status: 'Webhook received but email fallback empty' });
+      return res.status(200).json({ status: 'Webhook received but no email found anywhere' });
     } catch (e) {
       return res.status(500).json({ error: e.message });
     }
