@@ -1,32 +1,41 @@
 export default async function handler(req, res) {
-res.setHeader('Access-Control-Allow-Credentials', true);
-res.setHeader('Access-Control-Allow-Origin', '*');
-res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
+  res.setHeader('Access-Control-Allow-Credentials', true);
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
-if (req.method === 'OPTIONS') {
-    res.status(200).end();
-    return;
-}
+  if (req.method === 'OPTIONS') return res.status(200).end();
 
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: "Method not allowed. Dapat POST request ang gamitin sa cart." });
+  // 1. WEBHOOK LISTENER (DITO NAGDEDELIVER ANG PAYMONGO)
+  if (req.method === 'POST' && req.body.data?.attributes?.type === 'payment.paid') {
+    try {
+      const email = req.body.data.attributes.payload.data.attributes.billing.email;
+      const name = req.body.data.attributes.payload.data.attributes.billing.name;
+      
+      // I-trigger ang Resend Email
+      await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.RESEND_API_KEY}`
+        },
+        body: JSON.stringify({
+          from: 'Digitera Shop <onboarding@resend.dev>',
+          to: email,
+          subject: 'Your Digital Asset Delivery',
+          html: `<h1>Hello ${name}!</h1><p>Thank you for your purchase. Your files are ready!</p>`
+        })
+      });
+      return res.status(200).json({ status: 'Email sent' });
+    } catch (e) {
+      return res.status(500).json({ error: e.message });
+    }
   }
 
-  const { items, redirect_url } = req.body;
-
-  if (!items || !Array.isArray(items) || items.length === 0 || !redirect_url) {
-    return res.status(400).json({ error: "Kulang ang detalye ng cart o redirect_url!" });
-  }
-
-  const lineItems = items.map(item => ({
-    amount: Math.round(parseFloat(item.price) * 100), 
-    currency: 'PHP',
-    name: item.name,
-    quantity: item.quantity || 1
-  }));
-
-  try {
+  // 2. CHECKOUT SESSION CREATOR (DITO NAGREREQUEST NG PAYMENT ANG SHOP)
+  if (req.method === 'POST') {
+    const { items, email, redirect_url } = req.body;
+    
     const response = await fetch('https://api.paymongo.com/v1/checkout_sessions', {
       method: 'POST',
       headers: {
@@ -36,27 +45,16 @@ if (req.method === 'OPTIONS') {
       body: JSON.stringify({
         data: {
           attributes: {
-            send_email_receipt: true,
-            show_description: true,
-            show_line_items: true,
-            line_items: lineItems,
-            // Ginawa nating dalawa: GCash (para lumabas ang Billing/Email fields sa kaliwa) at QRPH!
-            payment_method_types: ['gcash', 'qrph'], 
+            line_items: items.map(i => ({ name: i.name, amount: Math.round(i.price * 100), quantity: i.quantity, currency: 'PHP' })),
+            payment_method_types: ['gcash', 'qrph'],
+            billing: { email: email },
             success_url: redirect_url
           }
         }
       })
     });
-
+    
     const data = await response.json();
-
-    if (!response.ok) {
-      return res.status(response.status).json({ error: data.errors });
-    }
-
     return res.status(200).json({ checkout_url: data.data.attributes.checkout_url });
-
-  } catch (error) {
-    return res.status(500).json({ error: error.message });
   }
 }
