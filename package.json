@@ -1,0 +1,9 @@
+{
+  "name": "digitera-shop-backend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "api/cart-checkout.js",
+  "dependencies": {
+    "firebase-admin": "^12.0.0"
+  }
+}
