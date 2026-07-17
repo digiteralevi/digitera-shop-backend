@@ -40,10 +40,9 @@ if (req.method === 'OPTIONS') {
             show_description: true,
             show_line_items: true,
             line_items: lineItems,
-            payment_method_types: ['qrph'],
-            success_url: redirect_url,
-            // Ginagawa nating REQUIRE ang mga fields na ito para hindi pwedeng laktawan ng PayMongo
-            required_fields: ['billing.email', 'billing.name']
+            // Ginawa nating dalawa: GCash (para lumabas ang Billing/Email fields sa kaliwa) at QRPH!
+            payment_method_types: ['gcash', 'qrph'], 
+            success_url: redirect_url
           }
         }
       })
