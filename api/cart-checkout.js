@@ -40,8 +40,14 @@ if (req.method === 'OPTIONS') {
             show_description: true,
             show_line_items: true,
             line_items: lineItems,
-            payment_method_types: ['qrph'], // QR CODE / QR PH LANG MUNA!
-            success_url: redirect_url
+            payment_method_types: ['qrph'],
+            success_url: redirect_url,
+            // ITO ANG NAGPUPWERSA NA HINGIN ANG EMAIL AT PANGALAN NG BUYER SA CHECKOUT PAGE
+            billing: {
+              name: "",
+              email: "",
+              phone: ""
+            }
           }
         }
       })
