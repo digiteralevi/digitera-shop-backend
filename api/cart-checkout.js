@@ -42,7 +42,7 @@ if (req.method === 'OPTIONS') {
             show_description: true,
             show_line_items: true,
             line_items: lineItems,
-            payment_method_types: ['card', 'gcash', 'maya', 'grab_pay'],
+            payment_method_types: ['card', 'gcash', 'paymaya', 'grab_pay'],
             success_url: redirect_url
           }
         }
