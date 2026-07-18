@@ -1,88 +1,25 @@
-import { initializeApp, cert, getApps } from 'firebase-admin/app';
-import { getFirestore } from 'firebase-admin/firestore';
-
-// I-initialize ang Firebase Admin subalit iiwasan ang paulit-ulit na pag-initialize
-// I-initialize ang Firebase Admin subalit iiwasan ang paulit-ulit na pag-initialize
-if (!getApps().length) {
-  const privateKey = process.env.FIREBASE_PRIVATE_KEY 
-    ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n') 
-    : undefined;
-
-  initializeApp({
-    credential: cert({
-      projectId: process.env.FIREBASE_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: privateKey,
-    }),
-  });
-}
-
-export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Credentials', true);
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-
-  if (req.method === 'OPTIONS') return res.status(200).end();
-
-  if (req.method === 'POST') {
-    const payload = req.body;
-
-    // A. CHECKOUT SESSION CREATOR (Galing sa website mo)
-    if (payload.items) {
-      const { items, email, redirect_url } = payload;
-      try {
-        const response = await fetch('https://api.paymongo.com/v1/checkout_sessions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Basic ${Buffer.from(process.env.PAYMONGO_SECRET_KEY).toString('base64')}`
-          },
-          body: JSON.stringify({
-            data: {
-              attributes: {
-                line_items: items.map(i => ({ name: i.name, amount: Math.round(i.price * 100), quantity: i.quantity, currency: 'PHP' })),
-                payment_method_types: ['gcash', 'qrph'],
-                billing: { email: email },
-                metadata: { 
-                  customer_email: email,
-                  // Dito natin ise-save ang mga biniling produkto para mabasa ng webhook mamaya
-                  purchased_items: JSON.stringify(items.map(i => i.name))
-                },
-                success_url: redirect_url
-              }
-            }
-          })
-        });
-        
-        const data = await response.json();
-        return res.status(200).json({ checkout_url: data.data.attributes.checkout_url });
-      } catch (error) {
-        return res.status(500).json({ error: error.message });
-      }
-    }
-
-    // B. WEBHOOK LISTENER (Galing kay PayMongo kapag paid na)
+// B. WEBHOOK LISTENER (Galing kay PayMongo kapag paid na)
     try {
-      let email = payload.data?.attributes?.metadata?.customer_email ||
-                  payload.data?.attributes?.data?.attributes?.metadata?.customer_email;
-                  
-      if (!email) {
-        email = payload.data?.attributes?.data?.attributes?.billing?.email || 
-                payload.data?.attributes?.billing?.email;
-      }
-                  
-      let name = payload.data?.attributes?.data?.attributes?.billing?.name || 
-                 payload.data?.attributes?.billing?.name || 
-                 "Customer";
-
-      // Kunin natin ang listahan ng mga biniling items mula sa metadata
-      let itemsJson = payload.data?.attributes?.metadata?.purchased_items ||
-                      payload.data?.attributes?.data?.attributes?.metadata?.purchased_items;
+      // Ligtas na pagkuha ng attributes mula sa payload
+      const attributes = payload.data?.attributes?.data?.attributes || payload.data?.attributes;
       
+      if (!attributes) {
+        return res.status(200).json({ status: 'Webhook received but payload structure unknown' });
+      }
+
+      let email = attributes.metadata?.customer_email || attributes.billing?.email;
+      let name = attributes.billing?.name || "Customer";
+
+      // Kunin natin ang listahan ng mga biniling items mula sa metadata sa ligtas na paraan
+      let itemsJson = attributes.metadata?.purchased_items;
       let itemsArray = [];
+      
       if (itemsJson) {
-        itemsArray = JSON.parse(itemsJson);
+        try {
+          itemsArray = JSON.parse(itemsJson);
+        } catch (jsonErr) {
+          console.error("JSON Parse error:", jsonErr.message);
+        }
       }
 
       // HAHANAPIN NA NATIN ANG TOTOONG LINK MULA SA FIREBASE
@@ -90,7 +27,6 @@ export default async function handler(req, res) {
       
       if (itemsArray.length > 0) {
         for (const itemName of itemsArray) {
-          // I-query ang Firebase collection na 'products' kung saan tugma ang pangalan
           const productsRef = db.collection('products');
           const snapshot = await productsRef.where('name', '==', itemName).get();
           
@@ -99,7 +35,6 @@ export default async function handler(req, res) {
           if (!snapshot.empty) {
             snapshot.forEach(doc => {
               const data = doc.data();
-              // Hahanapin kung saang field nakatago ang link (mga posibleng pangalan ng field)
               downloadUrl = data.downloadUrl || data.accessLink || data.secureLink || data.link;
             });
           }
@@ -151,5 +86,3 @@ export default async function handler(req, res) {
     } catch (e) {
       return res.status(500).json({ error: e.message });
     }
-  }
-}
