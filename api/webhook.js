@@ -33,7 +33,12 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Invalid JSON payload' });
   }
 
-  const isPaymongoWebhook = payload?.data?.type === 'event' && !!payload?.data?.attributes?.type;
+  // LOG para makita natin ang payload
+  console.log('PAYLOAD TYPE:', payload?.data?.attributes?.type);
+  console.log('PAYLOAD KEYS:', JSON.stringify(Object.keys(payload || {})));
+  console.log('PAYLOAD PREVIEW:', JSON.stringify(payload).substring(0, 500));
+
+  const isPaymongoWebhook = !!(payload?.data?.attributes?.type);
 
   // PART A: FRONTEND CHECKOUT SESSION CREATION
   if (!isPaymongoWebhook) {
@@ -84,12 +89,16 @@ export default async function handler(req, res) {
     }
   }
 
-  // PART B: WEBHOOK LISTENER
+  // PART B: WEBHOOK LISTENER (Galing kay PayMongo kapag paid na)
   try {
+    const eventType = payload?.data?.attributes?.type;
+    console.log('EVENT TYPE:', eventType);
+
     const attributes = payload?.data?.attributes?.data?.attributes;
+    console.log('ATTRIBUTES PREVIEW:', JSON.stringify(attributes).substring(0, 300));
 
     if (!attributes) {
-      return res.status(200).json({ status: 'Webhook received but payload structure unknown' });
+      return res.status(200).json({ status: 'Webhook received but attributes empty' });
     }
 
     let email = attributes?.billing?.email || attributes?.metadata?.customer_email;
@@ -97,14 +106,19 @@ export default async function handler(req, res) {
     let itemsJson = attributes?.metadata?.purchased_items;
     let itemsArray = [];
 
+    console.log('EMAIL:', email);
+    console.log('ITEMS JSON:', itemsJson);
+
     if (itemsJson) {
-      try { itemsArray = JSON.parse(itemsJson); } 
+      try { itemsArray = JSON.parse(itemsJson); }
       catch (e) { console.error("JSON parse error:", e.message); }
     }
 
     if (itemsArray.length === 0 && attributes?.line_items) {
       itemsArray = attributes.line_items.map(i => i.name);
     }
+
+    console.log('ITEMS ARRAY:', JSON.stringify(itemsArray));
 
     let linksHtml = "";
 
@@ -123,6 +137,8 @@ export default async function handler(req, res) {
           });
         }
 
+        console.log('PRODUCT:', itemName, '| URL:', downloadUrl);
+
         if (downloadUrl) {
           linksHtml += `
             <div style="margin-bottom:15px; padding:15px; border:1px solid #e0e0e0; border-radius:8px; background:#f9f9f9;">
@@ -137,7 +153,7 @@ export default async function handler(req, res) {
     }
 
     if (email) {
-      await fetch('https://api.resend.com/emails', {
+      const emailRes = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -160,12 +176,16 @@ export default async function handler(req, res) {
         })
       });
 
+      const emailData = await emailRes.json();
+      console.log('RESEND RESPONSE:', JSON.stringify(emailData));
+
       return res.status(200).json({ status: 'Email sent successfully!' });
     }
 
     return res.status(200).json({ status: 'Webhook received but no email found' });
 
   } catch (err) {
+    console.error('WEBHOOK ERROR:', err.message);
     return res.status(500).json({ error: err.message });
   }
 }
