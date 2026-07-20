@@ -33,14 +33,14 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Invalid JSON payload' });
   }
 
-  // LOG para makita natin ang payload
   console.log('PAYLOAD TYPE:', payload?.data?.attributes?.type);
-  console.log('PAYLOAD KEYS:', JSON.stringify(Object.keys(payload || {})));
   console.log('PAYLOAD PREVIEW:', JSON.stringify(payload).substring(0, 500));
 
   const isPaymongoWebhook = !!(payload?.data?.attributes?.type);
 
+  // ==========================================
   // PART A: FRONTEND CHECKOUT SESSION CREATION
+  // ==========================================
   if (!isPaymongoWebhook) {
     try {
       const { items, email, redirect_url } = payload;
@@ -70,7 +70,12 @@ export default async function handler(req, res) {
               cancel_url: redirect_url,
               metadata: {
                 customer_email: email,
-                purchased_items: JSON.stringify(items.map(i => i.name))
+                purchased_items: JSON.stringify(items.map(i => i.name)),
+                purchased_items_data: JSON.stringify(items.map(i => ({
+                  name: i.name,
+                  price: i.price,
+                  quantity: i.quantity
+                })))
               }
             }
           }
@@ -89,7 +94,9 @@ export default async function handler(req, res) {
     }
   }
 
-  // PART B: WEBHOOK LISTENER (Galing kay PayMongo kapag paid na)
+  // ==========================================
+  // PART B: WEBHOOK LISTENER
+  // ==========================================
   try {
     const eventType = payload?.data?.attributes?.type;
     console.log('EVENT TYPE:', eventType);
@@ -104,7 +111,9 @@ export default async function handler(req, res) {
     let email = attributes?.billing?.email || attributes?.metadata?.customer_email;
     let name = attributes?.billing?.name || "Customer";
     let itemsJson = attributes?.metadata?.purchased_items;
+    let itemsDataJson = attributes?.metadata?.purchased_items_data;
     let itemsArray = [];
+    let itemsDataArray = [];
 
     console.log('EMAIL:', email);
     console.log('ITEMS JSON:', itemsJson);
@@ -114,11 +123,37 @@ export default async function handler(req, res) {
       catch (e) { console.error("JSON parse error:", e.message); }
     }
 
+    if (itemsDataJson) {
+      try { itemsDataArray = JSON.parse(itemsDataJson); }
+      catch (e) { console.error("Items data parse error:", e.message); }
+    }
+
     if (itemsArray.length === 0 && attributes?.line_items) {
       itemsArray = attributes.line_items.map(i => i.name);
     }
 
+    if (itemsDataArray.length === 0 && attributes?.line_items) {
+      itemsDataArray = attributes.line_items.map(i => ({
+        name: i.name,
+        price: i.amount / 100,
+        quantity: i.quantity
+      }));
+    }
+
     console.log('ITEMS ARRAY:', JSON.stringify(itemsArray));
+
+    // ✅ CALCULATE TOTAL AMOUNT
+    const totalAmount = itemsDataArray.length > 0
+      ? itemsDataArray.reduce((sum, item) => sum + (item.price * item.quantity), 0)
+      : (attributes?.amount ? attributes.amount / 100 : 0);
+
+    // ✅ GET PAYMENT METHOD
+    const paymentMethod = attributes?.payments?.[0]?.data?.attributes?.source?.type
+      || attributes?.payment_method_used
+      || 'unknown';
+
+    // ✅ GET PAYMENT ID
+    const paymentId = payload?.data?.attributes?.data?.id || 'unknown';
 
     let linksHtml = "";
 
@@ -152,6 +187,26 @@ export default async function handler(req, res) {
       }
     }
 
+    // ✅ SAVE ORDER TO FIREBASE
+    if (db && email) {
+      try {
+        await db.collection('orders').add({
+          customerEmail: email,
+          customerName: name,
+          items: itemsDataArray.length > 0 ? itemsDataArray : itemsArray.map(name => ({ name, price: 0, quantity: 1 })),
+          totalAmount: totalAmount,
+          paymentMethod: paymentMethod,
+          paymentId: paymentId,
+          status: 'completed',
+          paidAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+        console.log('ORDER SAVED TO FIREBASE');
+      } catch (orderErr) {
+        console.error('Error saving order:', orderErr.message);
+      }
+    }
+
+    // ✅ SEND EMAIL
     if (email) {
       const emailRes = await fetch('https://api.resend.com/emails', {
         method: 'POST',
@@ -179,7 +234,7 @@ export default async function handler(req, res) {
       const emailData = await emailRes.json();
       console.log('RESEND RESPONSE:', JSON.stringify(emailData));
 
-      return res.status(200).json({ status: 'Email sent successfully!' });
+      return res.status(200).json({ status: 'Email sent and order saved!' });
     }
 
     return res.status(200).json({ status: 'Webhook received but no email found' });
