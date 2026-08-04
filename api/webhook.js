@@ -1,6 +1,19 @@
 const nodemailer = require('nodemailer');
+const admin = require('firebase-admin');
 
-// 1. I-setup ang Nodemailer transporter
+// 1. I-initialize ang Firebase kung hindi pa naka-initialize
+if (!admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.cert({
+      projectId: process.env.FIREBASE_PROJECT_ID,
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+    }),
+  });
+}
+const db = admin.firestore();
+
+// 2. I-setup ang Nodemailer transporter
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
@@ -9,7 +22,7 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// 2. Dito magsisimula ang Vercel Function
+// 3. Vercel Serverless Function
 module.exports = async (req, res) => {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -17,11 +30,9 @@ module.exports = async (req, res) => {
 
   try {
     const event = req.body;
-
-    // --- ILAGAY ITO SA ITAAS (Dito natin kukunin ang email at detalye) ---
     const payloadData = event?.data?.attributes;
     
-    // Subukan nating kunin ang email mula sa iba't ibang posibleng lokasyon sa PayMongo payload
+    // Kunin ang email ng customer mula sa PayMongo payload
     const customerEmail = 
       payloadData?.billing?.email || 
       payloadData?.data?.attributes?.billing?.email || 
@@ -29,19 +40,37 @@ module.exports = async (req, res) => {
 
     console.log("Customer email detected:", customerEmail);
 
-    // Kung walang makitang email, hihinto ito at mag-a-abort para hindi mag-error
     if (!customerEmail) {
       return res.status(400).json({ error: 'No recipient email found in payload' });
     }
 
-    const productName = "Digital Product"; 
-    const downloadLink = "https://your-download-link.com";
-    // -----------------------------------------------------------------
+    // Kunin ang pangalan ng produkto mula sa PayMongo
+    const productName = payloadData?.line_items?.[0]?.name || "Free PLR digital products";
+    console.log("Product name detected:", productName);
 
-    // 3. Pagkatapos makuha sa itaas, saka natin ipapadala via Nodemailer
+    // Hanapin ang accessLink sa Firebase Firestore gamit ang pangalan ng produkto
+    let downloadLink = "https://drive.google.com"; // Fallback link sakaling hindi mahanap
+    try {
+      const productsSnapshot = await db.collection('products')
+        .where('name', '==', productName)
+        .get();
+
+      if (!productsSnapshot.empty) {
+        const productData = productsSnapshot.docs[0].data();
+        if (productData.accessLink) {
+          downloadLink = productData.accessLink;
+        }
+      }
+    } catch (dbError) {
+      console.error("Error fetching accessLink from Firebase:", dbError);
+    }
+
+    console.log("Download link to send:", downloadLink);
+
+    // 4. Ipadala ang email sa pamamagitan ng Nodemailer kasama ang tamang link
     const mailOptions = {
       from: `"Digitera Levi" <${process.env.EMAIL_USER}>`,
-      to: customerEmail, // Dito na gagamitin ang nakuha sa itaas
+      to: customerEmail,
       subject: `Your Digital Product: ${productName}`,
       html: `
         <h2>Salamat sa iyong pagbili!</h2>
