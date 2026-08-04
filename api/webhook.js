@@ -1,20 +1,24 @@
 const nodemailer = require('nodemailer');
 const admin = require('firebase-admin');
 
-// 1. I-initialize ang Firebase gamit ang safe private key parsing
+// 1. I-initialize ang Firebase na may malakas na pag-ayos ng Private Key format
 if (!admin.apps.length) {
-  let privateKey = process.env.FIREBASE_PRIVATE_KEY || '';
+  let rawKey = process.env.FIREBASE_PRIVATE_KEY || '';
   
-  if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
-    privateKey = privateKey.slice(1, -1);
+  // Linisin ang mga sobra o maling quotes at pagkakabuo
+  rawKey = rawKey.trim();
+  if ((rawKey.startsWith('"') && rawKey.endsWith('"')) || (rawKey.startsWith("'") && rawKey.endsWith("'"))) {
+    rawKey = rawKey.slice(1, -1);
   }
-  privateKey = privateKey.replace(/\\n/g, '\n');
+  
+  // Siguraduhing tama ang conversion ng mga bagong linya
+  const formattedKey = rawKey.includes('\\n') ? rawKey.replace(/\\n/g, '\n') : rawKey;
 
   admin.initializeApp({
     credential: admin.credential.cert({
       projectId: process.env.FIREBASE_PROJECT_ID,
       clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: privateKey,
+      privateKey: formattedKey,
     }),
   });
 }
