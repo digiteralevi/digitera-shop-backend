@@ -1,24 +1,40 @@
 const nodemailer = require('nodemailer');
 const admin = require('firebase-admin');
 
-// 1. I-initialize ang Firebase na may malakas na pag-ayos ng Private Key format
+// 1. Direktang i-initialize ang Firebase gamit ang eksaktong mga detalye mo
 if (!admin.apps.length) {
-  let rawKey = process.env.FIREBASE_PRIVATE_KEY || '';
-  
-  // Linisin ang mga sobra o maling quotes at pagkakabuo
-  rawKey = rawKey.trim();
-  if ((rawKey.startsWith('"') && rawKey.endsWith('"')) || (rawKey.startsWith("'") && rawKey.endsWith("'"))) {
-    rawKey = rawKey.slice(1, -1);
-  }
-  
-  // Siguraduhing tama ang conversion ng mga bagong linya
-  const formattedKey = rawKey.includes('\\n') ? rawKey.replace(/\\n/g, '\n') : rawKey;
-
   admin.initializeApp({
     credential: admin.credential.cert({
-      projectId: process.env.FIREBASE_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: formattedKey,
+      projectId: "digitera-levi-shop",
+      clientEmail: "firebase-adminsdk-fbsvc@digitera-levi-shop.iam.gserviceaccount.com",
+      privateKey: `-----BEGIN PRIVATE KEY-----
+MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQC1keby+eX2vtmi
+8nWdLcppXcquUZuxMkaniYdzQ12Hrs/Hpg7cnDNKaVEzcXjIGvA5rhv7TU0xVygM
+nyi4VzUVvsrw8MWNGuiMn1P1ZnV9Br3qPtijQDbQqnbo1ZvKfWH7poR5yXM0ctnyc
+Aaz+rxY8o6OvbjhsZiu1fh93C3P4ISCKNvWvcpw8eHf+xaJuy/5RUbWPJ/y9crk0
+2x0/cax9FJmafanDChuw4yzcGvxMpsU43QGSuXtWn+shoiQyfvLdaXEZyRZLusvy
+x2/KrBiacmCfW6E66R3SBJknABIDrLk2wzzlqMgV2ZIHIdm5v/5xw53pLxLalqYt
+4u1/KSnnAgMBAAECggEABquC7+cVNxDAvvcoMet2NZOv9+JglUxTAyGOu8G8RFk8
+IcnsXtdQHQosZPbkqHkw3PWT6pHm5Yqdmoas1bkyNU28E3v++SCqXPK6kdmxn6Ca
+IIBhFG+EcFJV/lM3U3o1Q1DbZPkawdTEVBjNqZd1+ilKwI2MfhLsxSCKeF2P14wU
+HUPOwL4EM/pnu3CEPSXl/9NanRRrnTLnjKfv5wGfvkw+lvNrtyTPl9unS2ACEEM0
+OBBjuY/uR9Q/qY7k34xSKsLDPKXk67GSphPBqW1pcoXSbWYd0hPxZa2aongQ3bsQ
+IuPyvMCYKjL/h4WlINDhwm7uFGMP0slh1NOAea49UQKBgQDmiLyqv19bIpwmxai1
+eZ7Qi9Qzs1m9dqurlTT+rS2vjVhZgeFWKoU7nxFyqV3wm/73dPLghBYUYPr1CShe
+ojgWhGNH7dxT3jUXkjgS6W6p+Hob0Vura1eN2leZfSSBnZnbenMmwESauXiaz1O0
+M37gMttzTkcac7RsqDlbbBasdwKBgQDJoIJRr0n4GmF6jO5ipwGQ54hpuk6E3BGs
+nbXXj/LQXUNHmwSZHGDlMrBWNbaswIkxpTdGWnW3F8RGizZw7Ooz3IqQ6JDOfwOOd
+Vv//qICztC1w9o/OqLqA9iJAkqfL97TGPZtAVuhprKTV/IFbcKrcEn39fFHo/+CC
+w6xNoQF6EQKBgHH9CHTRHYA9k8JkF7Bry4hIq4tI0kWpaOb1ZvfKf31/QUE4xEfL
+nzIcXdxQgBLAVIjQPYox7I0O+VDhW59wrD9qqaUDGrxvVEqFuDkXjoHFwyEf68/3F
+nMwqOwhM5YElgU8Rs+BkT0fGD4lUnInMsJ6A5xuTh/rfXUYgxAOdZXSvAoGBAL0q
+wqXm/2sdSgOhItxOJmpeIEt0XNbnC+zXqELRRD+ncIsK7rpz/JitAPIxPO1BSrZwS
+rbQAidAvh5tWCuEq4ryvHKOL+X9Fqoeg61fCkNWJEyUrvupmNWzvAF3S+mkMQufH
+PxSTNUSH/LLjT74pq7QECX68l+DhyJMG4G6Iw2jxAoGBAJmJD2ptqSMX9SrfM4uG
+hUnLLRLr4p8uN/mI7iHDFyHxN/JhVb4ZHMPxVYLHkLjAiiio9dIDjVE2PTMgIbvc
+nbkPrr/ZSowEA5HcpjRSJthzzV1FJx5egCiSa1AX45jIe89SrWxi8pBhrG7XzzCXJ
+3+IX+Tc99VWRg8KxJCAqM02z
+-----END PRIVATE KEY-----`
     }),
   });
 }
