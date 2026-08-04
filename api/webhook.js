@@ -76,8 +76,16 @@ module.exports = async (req, res) => {
     }
 
     const productName = payloadData?.line_items?.[0]?.name || "Free PLR digital products";
-    const amountPaid = payloadData?.amount ? payloadData.amount / 100 : 0;
     
+    // Inayos na pagkuha ng amount
+    const rawAmount = 
+      payloadData?.amount || 
+      payloadData?.payments?.[0]?.attributes?.amount || 
+      event?.data?.attributes?.data?.attributes?.amount || 
+      100; // default fallback (100 centavos = ₱1.00)
+
+    const amountPaid = rawAmount / 100;
+
     let downloadLink = "https://drive.google.com/file/d/18KFu3WFWm56W-MdL9Wld8Z9jXWcfedL2/view?usp=drive_link";
     try {
       const productsSnapshot = await db.collection('products')
@@ -94,7 +102,7 @@ module.exports = async (req, res) => {
       console.error("Error fetching accessLink from Firebase:", dbError);
     }
 
-    // Save order to Firestore (para lumabas sa Orders Dashboard)
+    // Save order to Firestore
     try {
       await db.collection('orders').add({
         customer: customerName,
@@ -105,7 +113,7 @@ module.exports = async (req, res) => {
         status: "Paid",
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
-      console.log("Order successfully saved to Firestore!");
+      console.log("Order successfully saved to Firestore with amount:", amountPaid);
     } catch (saveError) {
       console.error("Error saving order to Firestore:", saveError);
     }
