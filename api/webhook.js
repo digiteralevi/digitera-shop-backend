@@ -1,13 +1,20 @@
 const nodemailer = require('nodemailer');
 const admin = require('firebase-admin');
 
-// 1. I-initialize ang Firebase kung hindi pa naka-initialize
+// 1. I-initialize ang Firebase gamit ang safe private key parsing
 if (!admin.apps.length) {
+  let privateKey = process.env.FIREBASE_PRIVATE_KEY || '';
+  
+  if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
+    privateKey = privateKey.slice(1, -1);
+  }
+  privateKey = privateKey.replace(/\\n/g, '\n');
+
   admin.initializeApp({
     credential: admin.credential.cert({
       projectId: process.env.FIREBASE_PROJECT_ID,
       clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+      privateKey: privateKey,
     }),
   });
 }
@@ -49,7 +56,7 @@ module.exports = async (req, res) => {
     console.log("Product name detected:", productName);
 
     // Hanapin ang accessLink sa Firebase Firestore gamit ang pangalan ng produkto
-    let downloadLink = "https://drive.google.com"; // Fallback link sakaling hindi mahanap
+    let downloadLink = "https://drive.google.com"; // Fallback link
     try {
       const productsSnapshot = await db.collection('products')
         .where('name', '==', productName)
