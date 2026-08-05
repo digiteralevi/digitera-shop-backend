@@ -1,40 +1,13 @@
 const nodemailer = require('nodemailer');
 const admin = require('firebase-admin');
 
-// 1. Firebase Initialization
+// 1. Firebase Initialization (gamit na env vars, walang hardcoded key)
 if (!admin.apps.length) {
   admin.initializeApp({
     credential: admin.credential.cert({
-      projectId: "digitera-levi-shop",
-      clientEmail: "firebase-adminsdk-fbsvc@digitera-levi-shop.iam.gserviceaccount.com",
-      privateKey: `-----BEGIN PRIVATE KEY-----
-MIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQDPSqUaisLVtYVx
-/c6QTPACoT0r2FGupUmqIcJPuzD7IqvuOoTFLP5ifA2q+zUUs8GK+cV7ffw4Upum
-xTlw46xggjnHXEb3z0TJ16+03JKlP3oWAhAVsaXkd6joCrjrnlvmuzhfA6yeGDYz
-jRemBImTvA1PKccejqbvqcgKwjkvC+vDPhZQPkYPeI/lNiD1OY/hVOSe+9nz6oCi
-yxOxPh64PG0ccvgsbOQdgAF95vYYK2t5i0QqbxfAyhrnrm3uEBYu4AUU/1kZOOx8
-mpZBEbvoaVmnB3gjhmW2zlcuUKlCgbrix+0JoQIh2j2qcfYbErPujnJ0uMPpgRa0
-6cKn/fIvAgMBAAECggEAEbBce3HY43S8gPg4Hs858feBaVLp0X3wVdDQrI4cRWn1
-gvxCZTMMOCo+3lbWdkBKpUngJMQg+EtwVeBhoPUEui2SsaT5t17cD19U8pmZ9/j9
-OZCOf9NrhR4C714u3ohibkOOsWj2W31Ubry9BmE/vjgfaKB3ie+BZlU2KVjemVmD
-Noj1LJwUw/huHr4+YvucuoA1Rc84Pra09Y5mi0UK2WjMPkpVOpM6yVMvimOS6dsT
-yTL+b3pHYjFVi4T7r7a6OdOM/7vc5Dttu3Uzh0oK1QobSOExdzOubPtbRbhkuk5J
-b5qDLSkweCY52oVMw4N+M2OQcNwcNLpLv5+OdKkWgQKBgQDxZOtO78hrsoQdlzim
-tovvvcbimNEnuwSMwPUmZ75sPVkgijdGn0qhXcslUb7APlvolgTq/vOL14iekNXE
-G2t9/wHwskulALjmn9hBPRfSrcbjBref+L8G7ndBIgYKIZ6xLBk141z16Z0I0a4R
-hQh2gq4qxnvyQXHGIFBkXxmFgQKBgQDb1X4G9L0bwE1FF+O+5dnKEGxlZu/NqvNJ
-0FU5Z3R6CnqsCD055erg7IWmD/Q9wBXLEHDT32TNatYnaMoBeVyRwMfFo3U2zbYE
-T6is7ZDZuvJH+0TdhxQbcHAo1dtSFDqv6CsTLGIMNEVDRxPN2Br2Ci3JLukRy6Z3
-hCyxhIkvrwKBgDIKq8U3bCL3ZPAFc1cMLMJMYziCWYmU+YJ8VdXaV910ck+Ol5rq
-VrxRB1X7NkIAK2lyAB7/L1nkGoxUlhwLWyNJhAtzyr6wAaS9qkUL9y5TnBFgSRy+
-oks7kDlOZlYfVhiAfdFwCstn3IgBf8Zd/70hph1z/Cnia0WZWVEVbeMBAoGABbPQ
-BRYsIaAnYPdxrO4BbEBoz2iQJ+GbVfrVexu35cKH1BaSoAHayeLYxKn9R+zHo/DV
-PGm7D6kJzRPmyYsAX7eEdxf6XmWPpyT51yKCc2NqDXvzGVv7pYqRHj4N5l8n9pAr
-LeAk2vQwJ8KcPOayLFevQFy7Jv8FXmxLTH+Hn3kCgYAJbbpy1g4toPbidpBSk0bP
-nvQhM19rhIxLLmaPqZyKbcWl+r6L4fHnXa7ScJkIuh2tAeOyYuWaOhGzYRGSUwuM
-/jf4GlZO7+PToE8wz75++zYImMWEWA4HqaDFlgQ2acjqQ68pRY3qGY3b33lMOO3D
-Du5K3MPqj7Shu+N6XXq40Q==
------END PRIVATE KEY-----`
+      projectId: process.env.FIREBASE_PROJECT_ID,
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
     }),
   });
 }
